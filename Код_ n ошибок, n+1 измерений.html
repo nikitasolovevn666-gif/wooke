@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Код: n ошибок, n+1 измерений</title>
+<style>
+:root{--bg:#f6f7f4;--fg:#1d2420;--mut:#5d6a62;--card:#ffffff;--line:#cfd6d0;--acc:#1f5f4a;--accfg:#ffffff;--bad:#b3261e;--good:#1f6b3a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a17;--fg:#e8eee9;--mut:#9aa8a0;--card:#1c2420;--line:#33403a;--acc:#6fcf9f;--accfg:#0e1512;--bad:#ff8a80;--good:#7fdc9f}}
+:root[data-theme="dark"]{--bg:#141a17;--fg:#e8eee9;--mut:#9aa8a0;--card:#1c2420;--line:#33403a;--acc:#6fcf9f;--accfg:#0e1512;--bad:#ff8a80;--good:#7fdc9f}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 Georgia,"Times New Roman",serif}
+main{max-width:560px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.5rem;margin:0 0 4px}
+h2{font-size:1.15rem;margin:26px 0 6px}
+p.s{color:var(--mut);margin:0 0 18px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:.85rem;color:var(--mut);margin-bottom:4px}
+select,input,button{font:inherit;width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg)}
+input.m{margin-top:10px}
+button{margin-top:14px;background:var(--acc);color:var(--accfg);border:0;font-weight:bold;padding:13px}
+#out{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;font:14px/1.5 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
+.ok{color:var(--good);font-weight:bold}.no{color:var(--bad);font-weight:bold}
+#viz{margin-top:10px}
+#st{min-height:3.2em;margin-bottom:8px}
+#grid{display:grid;justify-content:center;border:1px solid var(--line);border-radius:6px;padding:4px;background:var(--card);overflow:auto;max-height:70vh}
+.c{display:flex;align-items:center;justify-content:center;font:12px ui-monospace,Menlo,monospace;box-sizing:border-box;border:1px solid transparent;color:var(--fg)}
+.c.pr{background:rgba(128,128,128,.2)}
+.c.bd{background:rgba(240,180,40,.55)}
+.c.er{background:var(--bad);color:#fff;font-weight:bold}
+.c.fd{background:rgba(60,170,90,.45);font-weight:bold}
+.c.fx{background:var(--good);color:#fff;font-weight:bold;box-shadow:0 0 0 2px var(--fg);position:relative;z-index:1}
+.lgl{font:13px/1.5 ui-monospace,Menlo,monospace;margin-top:12px;max-height:220px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;word-break:break-word}
+.c.gl{margin-left:2px}.c.gt{margin-top:2px}
+.sm .c{border:0;font-size:0;box-shadow:none}
+.sm .c.er{background:var(--bad)}
+.sm .c.fd{background:rgba(60,170,90,.45)}
+.sm .c.fx{background:var(--good);outline:2px solid var(--fg);position:relative;z-index:1}
+.ctl{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.lg{font-size:.85rem;color:var(--mut);margin-top:12px}
+</style>
+</head>
+<body>
+<main>
+<h1>Исправление ошибок</h1>
+<p class="s">Правило учителя: n ошибок исправляет код в (n+1)-мерном пространстве.</p>
+<div class="row">
+<div><label for="e">Ошибок n</label><select id="e"><option>1</option><option>2</option><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option></select></div>
+<div><label for="L">Сторона L</label><select id="L"><option selected>2</option><option>3</option></select></div>
+</div>
+<input class="m" id="m" placeholder="Своё сообщение из 0 и 1 (необязательно)" inputmode="numeric">
+<button id="go">Запустить</button>
+<div id="out">Выберите число ошибок и нажмите «Запустить». Число измерений выберется само: d = n + 1.</div>
+<section id="viz" hidden>
+<h2>Как исправляются ошибки</h2>
+<div id="st"></div>
+<div id="grid"></div>
+<div class="ctl"><button id="pv">Назад</button><button id="nx">Далее</button><button id="pl">Авто</button></div>
+<div id="log" class="lgl"></div>
+<p class="lg">Куб развёрнут в таблицу. Жёлтый фон: линия с нечётным числом единиц, в ней есть ошибка. Красный: ошибочный бит. Ярко-зелёный с рамкой: бит, который декодер только что перевернул. Светло-зелёный: уже исправленные биты. Серый фон: проверочные биты. Если клетки мелкие, цифры не показываются, остаются только цвета.</p>
+</section>
+</main>
+<script>
+function run(d,L,errs,msg){
+  const S=L+1,N=Math.pow(S,d),stride=[];
+  for(let i=0;i<d;i++)stride.push(Math.pow(S,d-1-i));
+  const C=[];
+  for(let p=0;p<N;p++){const c=[];for(let i=0;i<d;i++)c.push(Math.floor(p/stride[i])%S);C.push(c);}
+  const nd=Math.pow(L,d);
+  const bits=[];
+  for(let i=0;i<nd;i++)bits.push(i<msg.length?msg[i]:(msg.length?0:Math.random()<.5?1:0));
+  const a=new Uint8Array(N);
+  for(let p=0;p<N;p++){
+    const c=C[p];let ok=true,di=0;
+    for(let i=0;i<d;i++){if(c[i]>=L){ok=false;break;}di=di*L+c[i];}
+    if(ok)a[p]=bits[di];
+  }
+  for(let k=0;k<d;k++){
+    for(let p=0;p<N;p++){
+      const c=C[p];if(c[k]!==L)continue;
+      let ok=true;for(let j=k+1;j<d;j++)if(c[j]===L){ok=false;break;}
+      if(!ok)continue;
+      let s=0;const base=p-L*stride[k];
+      for(let i=0;i<L;i++)s^=a[base+i*stride[k]];
+      a[p]=s;
+    }
+  }
+  const sent=a.slice();
+  const lp=new Uint8Array(d*N),bad=new Set();
+  function flip(p){
+    a[p]^=1;
+    for(let k=0;k<d;k++){
+      const key=k*N+p-C[p][k]*stride[k];
+      lp[key]^=1;
+      if(lp[key])bad.add(key);else bad.delete(key);
+    }
+  }
+  const pos=[];
+  while(pos.length<errs){const p=Math.floor(Math.random()*N);if(!pos.includes(p))pos.push(p);}
+  pos.forEach(flip);
+  const recv=a.slice();
+  const t=Math.min((Math.pow(2,d)-1)>>1,12);
+  function search(depth,flips){
+    if(bad.size===0)return flips.slice();
+    if(depth===0)return null;
+    const key=bad.values().next().value,k=Math.floor(key/N),base=key%N;
+    for(let i=0;i<=L;i++){
+      const p=base+i*stride[k];
+      flip(p);flips.push(p);
+      const r=search(depth-1,flips);
+      flips.pop();flip(p);
+      if(r)return r;
+    }
+    return null;
+  }
+  let found=null;
+  for(let depth=0;depth<=t&&!found;depth++)found=search(depth,[]);
+  const fmt=p=>"("+C[p].join(",")+")";
+  let good=false;
+  if(found){found.forEach(flip);good=a.every((v,i)=>v===sent[i]);}
+  const red=Math.round((N-nd)/nd*100);
+  const maxT=(Math.pow(2,d)-1)>>1;
+  const bs=bits.join("");
+  let o="Измерений d = "+d+" (n + 1)\nДанных: "+nd+" бит, всего передаётся: "+N+" бит\nИзбыточность: "+red+"%\nКод может исправить до "+maxT+" ош.\n\n";
+  o+="Сообщение:\n"+(bs.length>64?bs.slice(0,64)+"… (первые 64 из "+bs.length+")":bs)+"\n\n";
+  o+="Внесены ошибки ("+errs+"):\n"+pos.map(fmt).join(" ")+"\n\n";
+  o+="Найдены ошибки:\n"+(found?found.map(fmt).join(" "):"не удалось найти")+"\n\n";
+  return {o,good,found,recv,sent,C,stride,d,L,S,N,pos};
+}
+document.getElementById("go").onclick=function(){
+  const n=+document.getElementById("e").value,L=+document.getElementById("L").value,d=n+1;
+  const raw=document.getElementById("m").value.replace(/\s/g,"");
+  const out=document.getElementById("out");
+  if(Math.pow(L+1,d)>30000){out.textContent="При L="+L+" и "+n+" ошибках получается слишком много бит ("+Math.pow(L+1,d)+"). Выберите L=2.";return;}
+  if(raw&&!/^[01]+$/.test(raw)){out.textContent="В сообщении допустимы только 0 и 1.";return;}
+  if(raw.length>Math.pow(L,d)){out.textContent="Сообщение длиннее "+Math.pow(L,d)+" бит. Увеличьте число ошибок или L.";return;}
+  out.textContent="Считаю…";
+  setTimeout(function(){
+    const r=run(d,L,n,raw.split("").filter(Boolean).map(Number));
+    out.textContent=r.o;
+    const s=document.createElement("span");
+    s.className=r.good?"ok":"no";
+    s.textContent=r.good?"Исправлено полностью":"Не исправлено";
+    out.appendChild(s);
+    startViz(r);
+  },30);
+};
+let VZ=null,timer=null;
+function startViz(r){
+  clearInterval(timer);
+  const cur=r.recv.slice(),states=[cur.slice()];
+  (r.found||[]).forEach(p=>{cur[p]^=1;states.push(cur.slice());});
+  VZ={r,states,i:0};
+  document.getElementById("viz").hidden=false;
+  draw();
+}
+function draw(){
+  const {r,states,i}=VZ,a=states[i],{d,L,S,N,C,stride,sent}=r;
+  const cnt=new Uint8Array(N);let lines=0;
+  for(let k=0;k<d;k++)for(let p=0;p<N;p++){
+    if(C[p][k]!==0)continue;
+    let s=0;for(let j=0;j<=L;j++)s^=a[p+j*stride[k]];
+    if(s){lines++;for(let j=0;j<=L;j++)cnt[p+j*stride[k]]++;}
+  }
+  const cd=Math.floor(d/2),rd=d-cd,cols=Math.pow(S,cd);
+  const avail=Math.min(window.innerWidth-40,520),cs=Math.max(3,Math.min(36,Math.floor((avail-2*cols/S)/cols)-1));
+  const g=document.getElementById("grid");
+  g.className=cs<9?"sm":"";
+  g.style.gridTemplateColumns="repeat("+cols+","+cs+"px)";
+  const fl=i>0?r.found[i-1]:-1;
+  const fixed=new Set((r.found||[]).slice(0,i));
+  const show=cs>=9;
+  let h="";
+  for(let p=0;p<N;p++){
+    const row=Math.floor(p/cols),col=p%cols;
+    let c="c";
+    if(C[p].some(v=>v===L))c+=" pr";
+    if(cnt[p])c+=" bd";
+    if(a[p]!==sent[p])c+=" er";
+    else if(p===fl)c+=" fx";
+    else if(fixed.has(p))c+=" fd";
+    if(cd>1&&col>0&&col%S===0)c+=" gl";
+    if(rd>1&&row>0&&row%S===0)c+=" gt";
+    h+='<div class="'+c+'" style="width:'+cs+'px;height:'+cs+'px">'+(show?a[p]:"")+'</div>';
+  }
+  g.innerHTML=h;
+  const fmt=p=>"("+C[p].join(",")+")";
+  let t;
+  if(i===0)t="Шаг 0. Принятый блок: нечётных линий "+lines+". Декодер ищет бит, переворот которого исправит линии.";
+  else t="Шаг "+i+" из "+r.found.length+". Перевёрнут бит "+fmt(fl)+". Нечётных линий осталось: "+lines+".";
+  if(i===states.length-1){
+    if(!r.found)t="Декодер не смог найти исправление.";
+    else if(lines===0)t+=" Все линии чётные, блок исправлен.";
+  }
+  document.getElementById("st").textContent=t;
+  const rc=p=>"строка "+(Math.floor(p/cols)+1)+", столбец "+(p%cols+1);
+  let lg="<b>Ошибки в канале ("+r.pos.length+"):</b>";
+  r.pos.forEach(p=>{lg+="<br>"+fmt(p)+" "+rc(p)+", "+sent[p]+" стало "+r.recv[p];});
+  if(r.found){
+    lg+="<br><br><b>Исправления:</b>";
+    r.found.forEach((p,k)=>{
+      const real=r.pos.includes(p);
+      const line=(k+1<=i?"✓ ":"· ")+"шаг "+(k+1)+": "+fmt(p)+" "+rc(p)+", "+r.recv[p]+" → "+(1-r.recv[p])+(real?"":" (ложный)");
+      lg+="<br>"+(k+1===i?"<b>"+line+"</b>":line);
+    });
+  }
+  document.getElementById("log").innerHTML=lg;
+}
+function stepViz(dn){
+  if(!VZ)return;
+  VZ.i=Math.max(0,Math.min(VZ.states.length-1,VZ.i+dn));
+  draw();
+}
+document.getElementById("nx").onclick=function(){clearInterval(timer);stepViz(1);};
+document.getElementById("pv").onclick=function(){clearInterval(timer);stepViz(-1);};
+document.getElementById("pl").onclick=function(){
+  if(!VZ)return;
+  clearInterval(timer);
+  VZ.i=0;draw();
+  timer=setInterval(function(){
+    if(VZ.i>=VZ.states.length-1){clearInterval(timer);return;}
+    stepViz(1);
+  },900);
+};
+</script>
+</body>
+</html>
